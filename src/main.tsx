@@ -14,6 +14,7 @@ import reportWebVitals from "./reportWebVitals.ts";
 
 import App from "./App.tsx";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import Cookies from "js-cookie";
 
 import ButtonPrimary from "./components/ButtonPrimary.tsx";
 import Login from "./pages/Login.tsx";
@@ -74,6 +75,14 @@ declare module "@tanstack/react-router" {
   }
 }
 
+const isLoggedIn = () => {
+  return !!Cookies.get("token");
+};
+
+const handleLogout = () => {
+  Cookies.remove("token");
+};
+
 const rootElement = document.getElementById("app");
 if (rootElement && !rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
@@ -87,12 +96,23 @@ if (rootElement && !rootElement.innerHTML) {
             Lib•ellus
           </h1>
           <div className="flex gap-2">
-            <ButtonPrimary onClick={() => (window.location.href = "/login")}>
-              Login
-            </ButtonPrimary>
-            <ButtonPrimary onClick={() => (window.location.href = "/user")}>
-              User
-            </ButtonPrimary>
+            {!isLoggedIn() && (
+              <ButtonPrimary onClick={() => (window.location.href = "/login")}>
+                Login
+              </ButtonPrimary>
+            )}
+            {isLoggedIn() && (
+              <>
+                <ButtonPrimary onClick={() => (window.location.href = "/user")}>
+                  User
+                </ButtonPrimary>
+                <ButtonPrimary
+                  varient="secondary"
+                  onClick={() => handleLogout()}>
+                  Logout
+                </ButtonPrimary>
+              </>
+            )}
           </div>
         </div>
         <RouterProvider router={router} />
