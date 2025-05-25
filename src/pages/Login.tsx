@@ -24,6 +24,7 @@ const Login = () => {
     onSuccess: (data) => {
       const token = data.token;
       const userType = data.user.data.attributes.type;
+      const userId = data.user.data.id;
 
       Cookies.set("token", token, {
         expires: 7,
@@ -32,6 +33,12 @@ const Login = () => {
       });
 
       Cookies.set("userType", userType, {
+        expires: 7,
+        secure: true,
+        sameSite: "Lax",
+      });
+
+      Cookies.set("userId", userId, {
         expires: 7,
         secure: true,
         sameSite: "Lax",

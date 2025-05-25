@@ -90,6 +90,7 @@ const isLoggedIn = () => {
 const handleLogout = () => {
   Cookies.remove("token");
   Cookies.remove("userType");
+  Cookies.remove("userId");
   window.location.href = "/";
 };
 
@@ -99,10 +100,10 @@ if (rootElement && !rootElement.innerHTML) {
   root.render(
     <StrictMode>
       <div className="h-svh grid grid-rows-[auto_1fr]">
-        <div className="bg-gray-300 cursor-pointer select-none px-8 py-4 flex justify-between items-center">
+        <div className="bg-gray-300 select-none px-8 py-4 flex justify-between items-center">
           <h1
             onClick={() => (window.location.href = "/")}
-            className="font-bold text-2xl text-gray-700">
+            className="font-bold text-2xl text-gray-700 cursor-pointer">
             Lib•ellus
           </h1>
           <div className="flex gap-2">

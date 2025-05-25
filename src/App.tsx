@@ -1,8 +1,9 @@
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { isLibrarian, redirectIfNoToken } from "./lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import Cookies from "js-cookie";
+import ButtonPrimary from "./components/ButtonPrimary";
 
 type FetchCategory = "books" | "authors";
 
@@ -44,11 +45,8 @@ interface AuthorItem {
   };
 }
 
-type TableProps =
-  | { category: "books"; data: BookItem[] }
-  | { category: "authors"; data: AuthorItem[] };
-
 const token = Cookies.get("token");
+const userId = Number(Cookies.get("userId"));
 
 const fetchCategoryData = async (category: FetchCategory) => {
   const response = await axios.get(`http://localhost:3001/${category}`, {
@@ -59,100 +57,211 @@ const fetchCategoryData = async (category: FetchCategory) => {
   return response.data;
 };
 
-const Table = ({ category, data }: TableProps) => {
-  if (category === "books") {
-    return (
-      <div className="m-4 border border-solid p-2 border-gray-300 rounded-3xl overflow-hidden">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th className="px-4 py-2 text-left">Title</th>
-              <th className="px-4 py-2 text-left">Description</th>
-              <th className="px-4 py-2 text-left">Year</th>
-              <th className="px-4 py-2 text-left">Type</th>
-              <th className="px-4 py-2 text-left">Copies</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((item) => (
-              <tr key={item.id} className="group cursor-pointer">
-                <td className="px-4 py-2 rounded-l-2xl group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
-                  {item.attributes.title}
-                </td>
-                <td className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
-                  {item.attributes.description}
-                </td>
-                <td className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
-                  {item.attributes.published_year}
-                </td>
-                <td className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
-                  {item.attributes.book_type}
-                </td>
-                <td className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all rounded-r-2xl">
-                  {item.attributes.copies_available}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
+const handleReservation = async ({
+  user_id,
+  book_id,
+}: {
+  user_id: number;
+  book_id: number;
+}) => {
+  const today = new Date();
+  const dueDate = new Date(today);
+  dueDate.setDate(dueDate.getDate() + 14);
 
-  if (category === "authors") {
-    return (
-      <div className="m-4 border border-solid p-2 border-gray-300 rounded-3xl overflow-hidden">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th className="px-4 py-2 text-left">First Name</th>
-              <th className="px-4 py-2 text-left">Last Name</th>
-              <th className="px-4 py-2 text-left">Biography</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((item) => (
-              <tr key={item.id} className="group cursor-pointer">
-                <td className="px-4 py-2 rounded-l-2xl group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
-                  {item.attributes.first_name}
-                </td>
-                <td className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
-                  {item.attributes.last_name}
-                </td>
-                <td className="px-4 py-2 rounded-r-2xl group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
-                  {item.attributes.biography}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
+  const response = await axios.post(
+    "http://localhost:3001/reservations",
+    {
+      reservation: {
+        reservation_date: today.toISOString().split("T")[0],
+        expiration_date: dueDate.toISOString().split("T")[0],
+        user_id: user_id,
+        book_id: book_id,
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
 
-  return null;
+  return response.data;
 };
 
 const App = () => {
   const [category, setCategory] = useState<FetchCategory>("books");
 
-  const { data, refetch, isFetching } = useQuery({
+  const usePostReservation = () => {
+    return useMutation({
+      mutationFn: handleReservation,
+      onSuccess: () => {
+        window.alert("Reservation successful!");
+      },
+    });
+  };
+
+  const { mutate: reserveBook, isPending, error, data } = usePostReservation();
+
+  const handleReserve = (userId: number, bookId: number) => {
+    reserveBook({ user_id: userId, book_id: bookId });
+  };
+
+  const { data: categoryData, refetch: refetchCategory } = useQuery({
     queryKey: ["categoryData", category],
     queryFn: () => fetchCategoryData(category),
     enabled: false,
   });
 
+  const { data: booksData } = useQuery({
+    queryKey: ["books"],
+    queryFn: () => fetchCategoryData("books"),
+  });
+
+  const booksCountMap = useMemo(() => {
+    if (!booksData || !Array.isArray(booksData.data)) {
+      return {};
+    }
+
+    return booksData.data.reduce((acc: Record<string, number>, item: any) => {
+      const authorId = item.relationships?.author?.data?.id;
+      if (!authorId) return acc;
+
+      if (!acc[authorId]) {
+        acc[authorId] = 0;
+      }
+      acc[authorId]++;
+      return acc;
+    }, {});
+  }, [booksData]);
+
+  const { data: authorsData } = useQuery({
+    queryKey: ["authors"],
+    queryFn: () => fetchCategoryData("authors"),
+  });
+
+  const authorsMap = useMemo(() => {
+    if (!authorsData || !Array.isArray(authorsData.data)) return {};
+    return authorsData.data.reduce(
+      (acc: Record<string, AuthorItem>, author: AuthorItem) => {
+        acc[author.id] = author;
+        return acc;
+      },
+      {}
+    );
+  }, [authorsData]);
+
   const handleFetch = () => {
-    refetch();
+    refetchCategory();
   };
+
+  useEffect(() => {
+    handleFetch();
+  }, [category]);
 
   useEffect(() => {
     redirectIfNoToken();
   }, []);
 
-  useEffect(() => {
-    handleFetch();
-  }, [category]);
+  const config = {
+    books: {
+      headers: ["Title", "Description", "Author", "Year", "Type", "Copies"],
+      renderRow: (item: BookItem) => {
+        const authorId = item.relationships.author?.data?.id;
+        const authorName =
+          authorsMap[authorId]?.attributes.first_name || "Unknown";
+
+        return [
+          <td
+            key="title"
+            className="px-4 py-2 rounded-l-2xl group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+            {item.attributes.title}
+          </td>,
+          <td
+            key="description"
+            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+            {item.attributes.description}
+          </td>,
+          <td
+            key="author"
+            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+            {authorName}
+          </td>,
+          <td
+            key="year"
+            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+            {item.attributes.published_year}
+          </td>,
+          <td
+            key="type"
+            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+            {item.attributes.book_type}
+          </td>,
+          <td
+            key="copies"
+            className="px-4 py-2 rounded-r-2xl group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+            {item.attributes.copies_available}
+          </td>,
+        ];
+      },
+    },
+    authors: {
+      headers: ["First Name", "Last Name", "Biography", "Books"],
+      renderRow: (item: AuthorItem) => {
+        const authorId = item.id;
+        const booksCount = booksCountMap[authorId];
+
+        return [
+          <td
+            key="firstName"
+            className="px-4 py-2 rounded-l-2xl group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+            {item.attributes.first_name}
+          </td>,
+          <td
+            key="lastName"
+            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+            {item.attributes.last_name}
+          </td>,
+          <td
+            key="bio"
+            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+            {item.attributes.biography}
+          </td>,
+          <td
+            key="books"
+            className="px-4 py-2 rounded-r-2xl group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+            {booksCount || 0}
+          </td>,
+        ];
+      },
+    },
+  };
+
+  if (!config[category]) return null;
+
+  const { headers, renderRow } = config[category];
+
+  function flattenDataAttributes(
+    obj: any,
+    prefix = "data"
+  ): Record<string, string> {
+    const result: Record<string, string> = {};
+
+    for (const [key, value] of Object.entries(obj)) {
+      const attrKey = `${prefix}-${key}`;
+
+      if (
+        value !== null &&
+        typeof value === "object" &&
+        !Array.isArray(value)
+      ) {
+        Object.assign(result, flattenDataAttributes(value, attrKey));
+      } else {
+        result[attrKey] = String(value);
+      }
+    }
+
+    return result;
+  }
 
   return (
     <div className="h-full">
@@ -182,9 +291,50 @@ const App = () => {
         </label>
       </div>
 
-      {isFetching && <p>Loading...</p>}
-
-      {data?.data && <Table category={category} data={data.data} />}
+      <div className="m-4 border border-solid p-2 border-gray-300 rounded-3xl overflow-hidden">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              {headers.map((header) => (
+                <th key={header} className="px-4 py-2 text-left">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {categoryData?.data &&
+              categoryData.data.map((item: any) => {
+                const dataAttributes = flattenDataAttributes(item);
+                return (
+                  <tr
+                    key={item.id}
+                    className="group cursor-pointer relative"
+                    {...dataAttributes}>
+                    {renderRow(item)}
+                    <td className="absolute h-full translate-x-full transition-all group-hover:-translate-x-full">
+                      {!isLibrarian() && (
+                        <ButtonPrimary
+                          onClick={() => {
+                            handleReserve(userId, item.id);
+                            item.attributes.copies_available -= 1;
+                          }}
+                          disabled={item.attributes.copies_available <= 0}
+                          className={`py-0 h-full ${
+                            item.attributes.copies_available <= 0
+                              ? "bg-gray-400 pointer-events-none"
+                              : ""
+                          }`}>
+                          Reserve
+                        </ButtonPrimary>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
