@@ -106,6 +106,11 @@ if (rootElement && !rootElement.innerHTML) {
             className="font-bold text-2xl text-gray-700 cursor-pointer">
             Lib•ellus
           </h1>
+          <ButtonPrimary
+            varient="secondary"
+            onClick={() => (window.location.href = "/")}>
+            Home
+          </ButtonPrimary>
           <div className="flex gap-2">
             {!isLoggedIn() && (
               <ButtonPrimary onClick={() => (window.location.href = "/login")}>

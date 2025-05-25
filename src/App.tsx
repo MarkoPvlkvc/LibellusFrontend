@@ -167,38 +167,26 @@ const App = () => {
       headers: ["Title", "Description", "Author", "Year", "Type", "Copies"],
       renderRow: (item: BookItem) => {
         const authorId = item.relationships.author?.data?.id;
-        const authorName =
-          authorsMap[authorId]?.attributes.first_name || "Unknown";
+        const authorFullName =
+          authorsMap[authorId]?.attributes.full_name || "Unknown";
 
         return [
-          <td
-            key="title"
-            className="px-4 py-2 rounded-l-2xl group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+          <td key="title" className="px-4 py-2 rounded-l-2xl">
             {item.attributes.title}
           </td>,
-          <td
-            key="description"
-            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+          <td key="description" className="px-4 py-2">
             {item.attributes.description}
           </td>,
-          <td
-            key="author"
-            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
-            {authorName}
+          <td key="author" className="px-4 py-2">
+            {authorFullName}
           </td>,
-          <td
-            key="year"
-            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+          <td key="year" className="px-4 py-2">
             {item.attributes.published_year}
           </td>,
-          <td
-            key="type"
-            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+          <td key="type" className="px-4 py-2">
             {item.attributes.book_type}
           </td>,
-          <td
-            key="copies"
-            className="px-4 py-2 rounded-r-2xl group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+          <td key="copies" className="px-4 py-2 rounded-r-2xl">
             {item.attributes.copies_available}
           </td>,
         ];
@@ -211,24 +199,16 @@ const App = () => {
         const booksCount = booksCountMap[authorId];
 
         return [
-          <td
-            key="firstName"
-            className="px-4 py-2 rounded-l-2xl group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+          <td key="firstName" className="px-4 py-2 rounded-l-2xl">
             {item.attributes.first_name}
           </td>,
-          <td
-            key="lastName"
-            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+          <td key="lastName" className="px-4 py-2">
             {item.attributes.last_name}
           </td>,
-          <td
-            key="bio"
-            className="px-4 py-2 group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+          <td key="bio" className="px-4 py-2">
             {item.attributes.biography}
           </td>,
-          <td
-            key="books"
-            className="px-4 py-2 rounded-r-2xl group-even:bg-gray-100 group-hover:bg-gray-300 transition-all">
+          <td key="books" className="px-4 py-2 rounded-r-2xl">
             {booksCount || 0}
           </td>,
         ];
@@ -309,12 +289,13 @@ const App = () => {
                 return (
                   <tr
                     key={item.id}
-                    className="group cursor-pointer relative"
+                    className="group relative"
                     {...dataAttributes}>
                     {renderRow(item)}
-                    <td className="absolute h-full translate-x-full transition-all group-hover:-translate-x-full">
-                      {!isLibrarian() && (
+                    {!isLibrarian() && category === "books" && (
+                      <td className="h-full pl-4">
                         <ButtonPrimary
+                          varient="secondary"
                           onClick={() => {
                             handleReserve(userId, item.id);
                             item.attributes.copies_available -= 1;
@@ -322,13 +303,13 @@ const App = () => {
                           disabled={item.attributes.copies_available <= 0}
                           className={`py-0 h-full ${
                             item.attributes.copies_available <= 0
-                              ? "bg-gray-400 pointer-events-none"
+                              ? "border-gray-200 text-gray-200 pointer-events-none"
                               : ""
                           }`}>
                           Reserve
                         </ButtonPrimary>
-                      )}
-                    </td>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
