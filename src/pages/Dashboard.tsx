@@ -1,12 +1,12 @@
 import { redirectIfNoToken } from "@/lib/utils";
 import { useEffect } from "react";
 
-const User = () => {
+const Dashboard = () => {
   useEffect(() => {
     redirectIfNoToken();
   }, []);
 
-  return <div className="h-full">User</div>;
+  return <div className="h-full">Dashboard</div>;
 };
 
-export default User;
+export default Dashboard;

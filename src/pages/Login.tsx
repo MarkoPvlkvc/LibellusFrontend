@@ -23,8 +23,15 @@ const Login = () => {
     mutationFn: () => loginMember(email, password),
     onSuccess: (data) => {
       const token = data.token;
+      const userType = data.user.data.attributes.type;
 
       Cookies.set("token", token, {
+        expires: 7,
+        secure: true,
+        sameSite: "Lax",
+      });
+
+      Cookies.set("userType", userType, {
         expires: 7,
         secure: true,
         sameSite: "Lax",

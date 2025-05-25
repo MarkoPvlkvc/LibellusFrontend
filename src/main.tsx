@@ -20,6 +20,8 @@ import ButtonPrimary from "./components/ButtonPrimary.tsx";
 import Login from "./pages/Login.tsx";
 import User from "./pages/User.tsx";
 import Register from "./pages/Register.tsx";
+import Dashboard from "./pages/Dashboard.tsx";
+import { isLibrarian } from "./lib/utils.ts";
 
 const queryClient = new QueryClient();
 
@@ -52,12 +54,18 @@ const userRoute = createRoute({
   path: "/user",
   component: User,
 });
+const dashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/dashboard",
+  component: Dashboard,
+});
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
   registerRoute,
   loginRoute,
   userRoute,
+  dashboardRoute,
 ]);
 
 const router = createRouter({
@@ -81,6 +89,8 @@ const isLoggedIn = () => {
 
 const handleLogout = () => {
   Cookies.remove("token");
+  Cookies.remove("userType");
+  window.location.href = "/";
 };
 
 const rootElement = document.getElementById("app");
@@ -92,7 +102,7 @@ if (rootElement && !rootElement.innerHTML) {
         <div className="bg-gray-300 cursor-pointer select-none px-8 py-4 flex justify-between items-center">
           <h1
             onClick={() => (window.location.href = "/")}
-            className="font-bold text-2xl">
+            className="font-bold text-2xl text-gray-700">
             Lib•ellus
           </h1>
           <div className="flex gap-2">
@@ -103,9 +113,17 @@ if (rootElement && !rootElement.innerHTML) {
             )}
             {isLoggedIn() && (
               <>
-                <ButtonPrimary onClick={() => (window.location.href = "/user")}>
-                  User
-                </ButtonPrimary>
+                {isLibrarian() ? (
+                  <ButtonPrimary
+                    onClick={() => (window.location.href = "/dashboard")}>
+                    Dashboard
+                  </ButtonPrimary>
+                ) : (
+                  <ButtonPrimary
+                    onClick={() => (window.location.href = "/user")}>
+                    User
+                  </ButtonPrimary>
+                )}
                 <ButtonPrimary
                   varient="secondary"
                   onClick={() => handleLogout()}>
