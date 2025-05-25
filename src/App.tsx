@@ -33,6 +33,7 @@ interface AuthorItem {
   attributes: {
     first_name: string;
     last_name: string;
+    full_name: string;
     biography: string;
   };
   relationships: {
@@ -48,8 +49,23 @@ interface AuthorItem {
 const token = Cookies.get("token");
 const userId = Number(Cookies.get("userId"));
 
-const fetchCategoryData = async (category: FetchCategory) => {
-  const response = await axios.get(`http://localhost:3001/${category}`, {
+const fetchCategoryData = async (
+  category: FetchCategory,
+  filters?: Record<string, string>
+) => {
+  let url = `http://localhost:3001/${category}`;
+  if (category === "books" && filters) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== "") {
+        params.append(key, value);
+      }
+    });
+    if (Array.from(params).length > 0) {
+      url += `?${params.toString()}`;
+    }
+  }
+  const response = await axios.get(url, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -91,6 +107,42 @@ const handleReservation = async ({
 const App = () => {
   const [category, setCategory] = useState<FetchCategory>("books");
 
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  const [filters, setFilters] = useState({
+    title: "",
+    published_year: "",
+    book_type: "",
+    author_id: "",
+    copies_available: "",
+  });
+
+  const sortableColumns = [
+    { key: "title", label: "Title" },
+    { key: "description", label: "Description" },
+    { key: "author", label: "Author" },
+    { key: "published_year", label: "Year" },
+    { key: "book_type", label: "Type" },
+    { key: "copies_available", label: "Copies" },
+  ];
+
+  // Book types for the select filter
+  const bookTypes = [
+    "fiction",
+    "nonfiction",
+    "biography",
+    "science",
+    "history",
+    "children",
+    "fantasy",
+    "mystery",
+    "romance",
+    "horror",
+    "self-help",
+    "other",
+  ];
+
   const usePostReservation = () => {
     return useMutation({
       mutationFn: handleReservation,
@@ -100,15 +152,15 @@ const App = () => {
     });
   };
 
-  const { mutate: reserveBook, isPending, error, data } = usePostReservation();
+  const { mutate: reserveBook } = usePostReservation();
 
   const handleReserve = (userId: number, bookId: number) => {
     reserveBook({ user_id: userId, book_id: bookId });
   };
 
   const { data: categoryData, refetch: refetchCategory } = useQuery({
-    queryKey: ["categoryData", category],
-    queryFn: () => fetchCategoryData(category),
+    queryKey: ["categoryData", category, filters],
+    queryFn: () => fetchCategoryData(category, filters),
     enabled: false,
   });
 
@@ -139,16 +191,62 @@ const App = () => {
     queryFn: () => fetchCategoryData("authors"),
   });
 
-  const authorsMap = useMemo(() => {
+  const authorsMap = useMemo<Record<string, AuthorItem>>(() => {
     if (!authorsData || !Array.isArray(authorsData.data)) return {};
-    return authorsData.data.reduce(
-      (acc: Record<string, AuthorItem>, author: AuthorItem) => {
-        acc[author.id] = author;
-        return acc;
-      },
-      {}
-    );
+    return authorsData.data.reduce((acc: any, author: AuthorItem) => {
+      acc[author.id] = author;
+      return acc;
+    }, {} as Record<string, AuthorItem>);
   }, [authorsData]);
+
+  const sortedBooksData = useMemo(() => {
+    if (category !== "books" || !categoryData?.data)
+      return categoryData?.data || [];
+
+    if (!sortColumn) return categoryData.data;
+
+    return [...categoryData.data].sort((a: any, b: any) => {
+      let aValue, bValue;
+
+      switch (sortColumn) {
+        case "title":
+          aValue = a.attributes.title.toLowerCase();
+          bValue = b.attributes.title.toLowerCase();
+          break;
+        case "description":
+          aValue = a.attributes.description.toLowerCase();
+          bValue = b.attributes.description.toLowerCase();
+          break;
+        case "author":
+          const authorAId = a.relationships.author?.data?.id;
+          const authorBId = b.relationships.author?.data?.id;
+          aValue =
+            authorsMap[authorAId]?.attributes.full_name?.toLowerCase() || "";
+          bValue =
+            authorsMap[authorBId]?.attributes.full_name?.toLowerCase() || "";
+          break;
+        case "published_year":
+          aValue = a.attributes.published_year;
+          bValue = b.attributes.published_year;
+          break;
+        case "book_type":
+          aValue = a.attributes.book_type.toLowerCase();
+          bValue = b.attributes.book_type.toLowerCase();
+          break;
+        case "copies_available":
+          aValue = a.attributes.copies_available;
+          bValue = b.attributes.copies_available;
+          break;
+        default:
+          aValue = "";
+          bValue = "";
+      }
+
+      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [category, categoryData, sortColumn, sortDirection, authorsMap]);
 
   const handleFetch = () => {
     refetchCategory();
@@ -161,6 +259,19 @@ const App = () => {
   useEffect(() => {
     redirectIfNoToken();
   }, []);
+
+  useEffect(() => {
+    if (category === "books") {
+      handleFetch();
+    }
+  }, [filters, category]);
+
+  const onFilterChange = (key: string, value: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
 
   const config = {
     books: {
@@ -271,6 +382,103 @@ const App = () => {
         </label>
       </div>
 
+      {category === "books" && (
+        <>
+          <div className="px-4 w-full justify-end flex items-center gap-4">
+            <label>
+              Sort by:
+              <select
+                value={sortColumn || ""}
+                onChange={(e) => setSortColumn(e.target.value || null)}
+                className="ml-2 rounded border px-2 py-1">
+                <option value="">--</option>
+                {sortableColumns.map(({ key, label }) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Direction:
+              <select
+                value={sortDirection}
+                onChange={(e) =>
+                  setSortDirection(e.target.value as "asc" | "desc")
+                }
+                className="ml-2 rounded border px-2 py-1">
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </label>
+          </div>
+          <div className="px-4 w-full flex justify-end items-center gap-4 mt-4">
+            <label className="flex flex-col">
+              Title:
+              <input
+                type="text"
+                value={filters.title}
+                onChange={(e) => onFilterChange("title", e.target.value)}
+                className="rounded border px-2 py-1"
+              />
+            </label>
+            <label className="flex flex-col">
+              Published Year:
+              <input
+                type="number"
+                value={filters.published_year}
+                onChange={(e) =>
+                  onFilterChange("published_year", e.target.value)
+                }
+                className="rounded border px-2 py-1"
+              />
+            </label>
+            <label className="flex flex-col">
+              Book Type:
+              <select
+                value={filters.book_type}
+                onChange={(e) => onFilterChange("book_type", e.target.value)}
+                className="rounded border px-2 py-1">
+                <option value="">--</option>
+                {bookTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col">
+              Author:
+              <select
+                value={filters.author_id}
+                onChange={(e) => onFilterChange("author_id", e.target.value)}
+                className="rounded border px-2 py-1">
+                <option value="">--</option>
+                {Object.entries(authorsMap).map(([id, author]) => (
+                  <option key={id} value={id}>
+                    {author.attributes.first_name} {author.attributes.last_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col">
+              Copies Available:
+              <select
+                value={filters.copies_available}
+                onChange={(e) =>
+                  onFilterChange("copies_available", e.target.value)
+                }
+                className="rounded border px-2 py-1">
+                <option value="">--</option>
+                <option value="true">True</option>
+                <option value="false">False</option>
+              </select>
+            </label>
+          </div>
+        </>
+      )}
+
       <div className="m-4 border border-solid p-2 border-gray-300 rounded-3xl overflow-hidden">
         <table className="w-full border-collapse">
           <thead>
@@ -283,8 +491,8 @@ const App = () => {
             </tr>
           </thead>
           <tbody>
-            {categoryData?.data &&
-              categoryData.data.map((item: any) => {
+            {(category === "books" ? sortedBooksData : categoryData?.data)?.map(
+              (item: any) => {
                 const dataAttributes = flattenDataAttributes(item);
                 return (
                   <tr
@@ -312,7 +520,8 @@ const App = () => {
                     )}
                   </tr>
                 );
-              })}
+              }
+            )}
           </tbody>
         </table>
       </div>
